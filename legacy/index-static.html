@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>绝缘子智能巡检系统</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand__mark"></div>
+          <div class="brand__text">
+            <div class="brand__title">绝缘子智能巡检系统</div>
+            <div class="brand__subtitle">采集 · 识别 · 定位 · 传输 · 告警 · 分析</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav__item nav__item--active" data-view="overview">总览</button>
+          <button class="nav__item" data-view="realtime">实时监控</button>
+          <button class="nav__item" data-view="events">告警中心</button>
+          <button class="nav__item" data-view="history">历史分析</button>
+          <button class="nav__item" data-view="devices">设备管理</button>
+        </nav>
+
+        <div class="topbar__right">
+          <div class="pill" id="clock">--:--:--</div>
+          <div class="pill pill--status" id="connStatus" data-status="disconnected">未连接</div>
+          <button class="btn btn--ghost" id="toggleDemo">演示模式</button>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="grid" id="view-overview">
+          <div class="card card--kpi">
+            <div class="kpis">
+              <div class="kpi">
+                <div class="kpi__label">在线设备</div>
+                <div class="kpi__value" id="kpiDevices">0</div>
+                <div class="kpi__hint" id="kpiDevicesHint">近5分钟活跃</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi__label">今日告警</div>
+                <div class="kpi__value" id="kpiAlarms">0</div>
+                <div class="kpi__hint">自动去重合并</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi__label">端到端时延</div>
+                <div class="kpi__value" id="kpiLatency">--</div>
+                <div class="kpi__hint">边缘 → MQTT → Web</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi__label">最新识别</div>
+                <div class="kpi__value" id="kpiLast">--</div>
+                <div class="kpi__hint" id="kpiLastHint">等待数据</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card--map">
+            <div class="card__header">
+              <div class="card__title">故障定位</div>
+              <div class="card__actions">
+                <button class="chip chip--active" data-mapmode="topology">线路拓扑</button>
+                <button class="chip" data-mapmode="coords">坐标信息</button>
+              </div>
+            </div>
+            <div class="map">
+              <div class="topology" id="topology">
+                <svg viewBox="0 0 760 220" preserveAspectRatio="none" class="topology__svg">
+                  <defs>
+                    <linearGradient id="gLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0" stop-color="#00d7ff" stop-opacity="0.25" />
+                      <stop offset="0.55" stop-color="#00d7ff" stop-opacity="0.8" />
+                      <stop offset="1" stop-color="#00d7ff" stop-opacity="0.25" />
+                    </linearGradient>
+                    <filter id="glow">
+                      <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+                  <path d="M30 130 C 120 60, 240 190, 330 120 S 560 50, 730 130" fill="none" stroke="url(#gLine)" stroke-width="4" />
+                  <g id="towerNodes"></g>
+                </svg>
+                <div class="topology__legend">
+                  <div class="legend__item"><span class="dot dot--ok"></span>正常</div>
+                  <div class="legend__item"><span class="dot dot--warn"></span>预警</div>
+                  <div class="legend__item"><span class="dot dot--alarm"></span>告警</div>
+                  <div class="legend__item"><span class="dot dot--off"></span>离线</div>
+                </div>
+              </div>
+
+              <div class="coords coords--hidden" id="coords">
+                <div class="coords__row">
+                  <div class="coords__label">杆塔/区段</div>
+                  <div class="coords__value" id="locName">--</div>
+                </div>
+                <div class="coords__row">
+                  <div class="coords__label">经纬度</div>
+                  <div class="coords__value" id="locCoord">--</div>
+                </div>
+                <div class="coords__row">
+                  <div class="coords__label">误差范围</div>
+                  <div class="coords__value" id="locAcc">--</div>
+                </div>
+                <div class="coords__row">
+                  <div class="coords__label">定位来源</div>
+                  <div class="coords__value" id="locSrc">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card--viewer">
+            <div class="card__header">
+              <div class="card__title">最新识别画面</div>
+              <div class="card__actions">
+                <button class="chip chip--active" id="toggleOverlay">叠加</button>
+                <button class="chip" id="toggleSplit">双视图</button>
+                <button class="chip" id="fullScreen">全屏</button>
+              </div>
+            </div>
+            <div class="viewer">
+              <div class="viewer__stage" id="viewerStage">
+                <img id="mainImage" class="viewer__img" alt="最新画面" src="../640.png" />
+                <canvas id="overlay" class="viewer__overlay"></canvas>
+                <div class="viewer__badge" id="viewerBadge">
+                  <span class="badge badge--ok" id="badgeLevel">NORMAL</span>
+                  <span class="badge badge--info" id="badgeType">--</span>
+                  <span class="badge badge--info" id="badgeScore">--</span>
+                </div>
+              </div>
+              <div class="viewer__split viewer__split--hidden" id="splitPanel">
+                <div class="split__col">
+                  <div class="split__label">原图</div>
+                  <img id="rawImage" class="split__img" alt="原图" src="../640.png" />
+                </div>
+                <div class="split__col">
+                  <div class="split__label">算法叠加</div>
+                  <div class="split__stack">
+                    <img id="algImage" class="split__img" alt="算法叠加" src="../640.png" />
+                    <canvas id="overlay2" class="split__overlay"></canvas>
+                  </div>
+                </div>
+              </div>
+              <div class="viewer__meta">
+                <div class="meta__item"><span class="meta__k">事件ID</span><span class="meta__v" id="metaId">--</span></div>
+                <div class="meta__item"><span class="meta__k">设备</span><span class="meta__v" id="metaDevice">--</span></div>
+                <div class="meta__item"><span class="meta__k">时间</span><span class="meta__v" id="metaTime">--</span></div>
+                <div class="meta__item"><span class="meta__k">推理耗时</span><span class="meta__v" id="metaInfer">--</span></div>
+                <div class="meta__item"><span class="meta__k">模型版本</span><span class="meta__v" id="metaModel">--</span></div>
+                <div class="meta__item"><span class="meta__k">定位</span><span class="meta__v" id="metaLoc">--</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card--alarms">
+            <div class="card__header">
+              <div class="card__title">告警时间线</div>
+              <div class="card__actions">
+                <button class="chip chip--active" data-filter="all">全部</button>
+                <button class="chip" data-filter="alarm">告警</button>
+                <button class="chip" data-filter="warn">预警</button>
+              </div>
+            </div>
+            <div class="alarms" id="alarms"></div>
+          </div>
+
+          <div class="card card--mqtt">
+            <div class="card__header">
+              <div class="card__title">MQTT链路</div>
+              <div class="card__actions">
+                <button class="chip chip--active" id="openConn">连接</button>
+                <button class="chip" id="clearLog">清空</button>
+              </div>
+            </div>
+            <div class="conn">
+              <div class="conn__row">
+                <div class="conn__label">Broker(WebSocket)</div>
+                <input class="input" id="brokerUrl" placeholder="wss://your-broker:8084/mqtt" />
+              </div>
+              <div class="conn__row conn__row--2">
+                <div class="conn__col">
+                  <div class="conn__label">ClientID</div>
+                  <input class="input" id="clientId" placeholder="web-demo-001" />
+                </div>
+                <div class="conn__col">
+                  <div class="conn__label">订阅Topic</div>
+                  <input class="input" id="topic" placeholder="iot/insulator/events" />
+                </div>
+              </div>
+              <div class="conn__row conn__row--2">
+                <div class="conn__col">
+                  <div class="conn__label">用户名(可选)</div>
+                  <input class="input" id="username" placeholder="" />
+                </div>
+                <div class="conn__col">
+                  <div class="conn__label">密码(可选)</div>
+                  <input class="input" id="password" type="password" placeholder="" />
+                </div>
+              </div>
+              <div class="conn__row conn__row--2">
+                <div class="conn__col">
+                  <div class="conn__label">图片Topic(可选)</div>
+                  <input class="input" id="imgTopic" placeholder="iot/insulator/images" />
+                </div>
+                <div class="conn__col">
+                  <div class="conn__label">QoS</div>
+                  <select class="input" id="qos">
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                  </select>
+                </div>
+              </div>
+              <div class="conn__row conn__row--actions">
+                <button class="btn btn--primary" id="btnConnect">连接并订阅</button>
+                <button class="btn" id="btnDisconnect">断开</button>
+                <button class="btn btn--ghost" id="saveCfg">保存配置</button>
+              </div>
+            </div>
+            <div class="log" id="log"></div>
+          </div>
+
+          <div class="card card--table">
+            <div class="card__header">
+              <div class="card__title">事件列表</div>
+              <div class="card__actions">
+                <input class="input input--mini" id="search" placeholder="搜索：设备/类型/ID" />
+                <button class="chip" id="exportJson">导出JSON</button>
+              </div>
+            </div>
+            <div class="tableWrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>设备</th>
+                    <th>缺陷类型</th>
+                    <th>等级</th>
+                    <th>置信度</th>
+                    <th>定位</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid grid--hidden" id="view-realtime"></section>
+        <section class="grid grid--hidden" id="view-events"></section>
+        <section class="grid grid--hidden" id="view-history"></section>
+        <section class="grid grid--hidden" id="view-devices"></section>
+      </main>
+
+      <aside class="drawer drawer--hidden" id="drawer">
+        <div class="drawer__header">
+          <div class="drawer__title">事件详情</div>
+          <button class="btn btn--ghost" id="drawerClose">关闭</button>
+        </div>
+        <div class="drawer__body">
+          <div class="drawer__section">
+            <div class="drawer__kv">
+              <div class="kv"><div class="kv__k">事件ID</div><div class="kv__v" id="dId">--</div></div>
+              <div class="kv"><div class="kv__k">时间</div><div class="kv__v" id="dTime">--</div></div>
+              <div class="kv"><div class="kv__k">设备</div><div class="kv__v" id="dDevice">--</div></div>
+              <div class="kv"><div class="kv__k">类型</div><div class="kv__v" id="dType">--</div></div>
+              <div class="kv"><div class="kv__k">等级</div><div class="kv__v" id="dLevel">--</div></div>
+              <div class="kv"><div class="kv__k">置信度</div><div class="kv__v" id="dScore">--</div></div>
+              <div class="kv"><div class="kv__k">定位</div><div class="kv__v" id="dLoc">--</div></div>
+              <div class="kv"><div class="kv__k">推理耗时</div><div class="kv__v" id="dInfer">--</div></div>
+              <div class="kv"><div class="kv__k">模型版本</div><div class="kv__v" id="dModel">--</div></div>
+            </div>
+          </div>
+          <div class="drawer__section">
+            <div class="drawer__label">图片</div>
+            <div class="drawer__imgWrap">
+              <img id="dImg" class="drawer__img" alt="事件图片" src="../640.png" />
+              <canvas id="dOverlay" class="drawer__overlay"></canvas>
+            </div>
+          </div>
+          <div class="drawer__section">
+            <div class="drawer__label">原始消息</div>
+            <pre class="drawer__pre" id="dRaw">--</pre>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="../app.js"></script>
+  </body>
+</html>
+
