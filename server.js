@@ -7,31 +7,28 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ================= 配置区 =================
 const HUAWEI_CONFIG = {
-  // 华为云应用侧 MQTT 接入地址 (注意去掉 tcp:// 或 ssl://，只要域名或IP)
-  host: "af8f490a33.st1.iotda-app.cn-north-4.myhuaweicloud.com",
-  port: 8883,
-  
-  // 刚才你发的 access_key 和 access_code
-  accessKey: "wqN5xMQW",
-  accessCode: "CEYlxEyDK6d6fzaXOdiBzvHHSnJPNM42",
-  
-  // 你刚才配置的推送队列 Topic
-  topic: "huawei/iotda/match2026/dev1",
+  host: process.env.IOTDA_HOST || "af8f490a33.st1.iotda-app.cn-north-4.myhuaweicloud.com",
+  port: Number(process.env.IOTDA_PORT || 8883),
+  accessKey: process.env.IOTDA_ACCESS_KEY || "",
+  accessCode: process.env.IOTDA_ACCESS_CODE || "",
+  topic: process.env.IOTDA_TOPIC || "huawei/iotda/match2026/dev1",
+  instanceId: process.env.IOTDA_INSTANCE_ID || "",
 };
 
-// 本地 WebSocket 服务器端口 (网页连这个端口)
-const WS_PORT = 8080;
-// ==========================================
+const WS_PORT = Number(process.env.PORT || process.env.WS_PORT || 8080);
 
-const instanceId = "";
+if (!HUAWEI_CONFIG.accessKey || !HUAWEI_CONFIG.accessCode) {
+  console.error("❌ 缺少环境变量：IOTDA_ACCESS_KEY / IOTDA_ACCESS_CODE");
+  process.exit(1);
+}
 
 // 2. 拼接 ClientID (全局唯一即可，建议用 accessKey 加上随机数)
 const clientId = `${HUAWEI_CONFIG.accessKey}_${Math.random().toString(16).slice(2, 8)}`;
 
 // 3. 读取华为云 CA 证书 (用于 8883 端口 TLS 校验)
-const caCertPath = path.join(__dirname, "certificate", "c", "DigiCertGlobalRootCA.crt.pem");
+const caCertPath =
+  process.env.IOTDA_CA_PATH || path.join(__dirname, "certificate", "c", "DigiCertGlobalRootCA.crt.pem");
 let caCert;
 try {
   caCert = fs.readFileSync(caCertPath);
@@ -54,7 +51,7 @@ async function sleep(ms) {
 
 function getClientOptions() {
   const timestamp = String(Math.round(new Date()));
-  const username = `accessKey=${HUAWEI_CONFIG.accessKey}|timestamp=${timestamp}|instanceId=${instanceId}`;
+  const username = `accessKey=${HUAWEI_CONFIG.accessKey}|timestamp=${timestamp}|instanceId=${HUAWEI_CONFIG.instanceId}`;
   return {
     host: HUAWEI_CONFIG.host,
     port: HUAWEI_CONFIG.port,
@@ -141,7 +138,7 @@ async function connectWithRetry() {
 // 5. 启动本地 WebSocket 服务器
 const wss = new WebSocketServer({ port: WS_PORT }, () => {
   console.log(`\n🚀 本地 WebSocket 服务器已启动，监听端口: ${WS_PORT}`);
-  console.log(`   网页前端请连接: ws://localhost:${WS_PORT}`);
+  console.log(`   网页前端请连接: ws://<你的服务器域名或IP>:${WS_PORT}`);
 });
 
 // 记录所有连进来的前端页面

@@ -105,6 +105,43 @@ npm run build
 
 构建后的文件会生成在 `dist` 目录，可直接部署到静态服务器。
 
+## Netlify 部署说明（MQTT 连接失败的根因与解决）
+
+Netlify 只能托管前端静态站点，无法常驻运行 WebSocket/MQTT 长连接后端。当前项目的实时数据链路是：
+
+- 后端 [server.js](file:///d:/trae_proj/IoTWeb/server.js) 连接华为云 IoTDA（应用侧 MQTTS 8883）订阅推送 Topic
+- 前端通过 WebSocket 连接后端获取数据并渲染
+
+因此你把前端部署到 Netlify 后，如果后端还在本机 `ws://localhost:8080`，浏览器一定连不上；并且 Netlify 使用 HTTPS，前端也必须使用 `wss://` 连接（`ws://` 会被浏览器拦截为 Mixed Content）。
+
+### 解决方案（推荐）
+
+1. 把后端 `server.js` 单独部署到一台公网服务器（云服务器 / Render / Railway / Fly.io 等）
+2. 用域名 + HTTPS（反向代理）给后端提供 `wss://你的后端域名/ws`
+3. 在 Netlify 的 Environment variables 里配置：
+
+```bash
+VITE_BACKEND_WS_URL=wss://你的后端域名/ws
+```
+
+4. 重新部署 Netlify 前端（让 Vite 在构建时注入该变量）
+
+### 后端环境变量（不要把密钥写进代码）
+
+后端支持从环境变量读取华为云参数，部署平台里配置：
+
+```bash
+IOTDA_HOST=af8f490a33.st1.iotda-app.cn-north-4.myhuaweicloud.com
+IOTDA_PORT=8883
+IOTDA_ACCESS_KEY=你的access_key
+IOTDA_ACCESS_CODE=你的access_code
+IOTDA_TOPIC=huawei/iotda/match2026/dev1
+IOTDA_INSTANCE_ID=
+IOTDA_CA_PATH=./certificate/c/DigiCertGlobalRootCA.crt.pem
+PORT=8080
+```
+
+
 ## 配置说明
 
 ### 天地图配置

@@ -93,7 +93,11 @@ let demoTimer = null;
 const lastLatencyMs = ref(null);
 const lastSeenByDevice = ref({});
 
-const backendUrl = ref("ws://localhost:8080");
+const defaultBackendUrl =
+  String(import.meta.env.VITE_BACKEND_WS_URL ?? "").trim() ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost" ? "ws://localhost:8080" : "");
+
+const backendUrl = ref(defaultBackendUrl);
 
 function computeLatency(evt) {
   const created = evt?.ts ? new Date(evt.ts).getTime() : null;
@@ -115,7 +119,7 @@ const backend = useBackendStream({
 });
 
 onMounted(() => {
-  backend.connect();
+  if (backendUrl.value) backend.connect();
 });
 
 const statusText = computed(() => {
