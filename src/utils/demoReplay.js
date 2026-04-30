@@ -10,6 +10,10 @@ const demoProfiles = [
   { deviceId: "edge-001", faultType: "裂纹", level: "告警", confidence: 0.93, location: [30.41402, 114.36312], state: false },
   { deviceId: "edge-002", faultType: "放电痕迹", level: "预警", confidence: 0.79, location: [30.41488, 114.36375], state: true },
   { deviceId: "edge-003", faultType: "伞裙破损", level: "告警", confidence: 0.9, location: [30.41296, 114.36446], state: false },
+  { deviceId: "edge-004", faultType: "污秽沉积", level: "预警", confidence: 0.77, location: [30.41362, 114.36236], state: false },
+  { deviceId: "edge-005", faultType: "金具锈蚀", level: "预警", confidence: 0.84, location: [30.41501, 114.36492], state: true },
+  { deviceId: "edge-004", faultType: "破损", level: "告警", confidence: 0.95, location: [30.41318, 114.36386], state: false },
+  { deviceId: "edge-005", faultType: "异物附着", level: "预警", confidence: 0.81, location: [30.41433, 114.36271], state: false },
 ];
 
 function safeJsonParse(text) {
@@ -24,20 +28,89 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function getBasePayload() {
+function extractFirstJsonObject(text) {
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth += 1;
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return {
+          jsonText: text.slice(start, i + 1),
+          restText: text.slice(i + 1),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractImageList(text) {
+  return String(text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const idx = line.indexOf("data:image/");
+      return idx >= 0 ? line.slice(idx) : line;
+    })
+    .filter((line) => line.startsWith("data:image/"));
+}
+
+function getBasePayloadAndImages() {
   const parsed = safeJsonParse(demoPayloadText);
-  if (parsed && typeof parsed === "object") return parsed;
+  if (parsed && typeof parsed === "object") {
+    return { payload: parsed, images: [] };
+  }
+
+  const extracted = extractFirstJsonObject(demoPayloadText);
+  if (extracted) {
+    const payload = safeJsonParse(extracted.jsonText);
+    if (payload && typeof payload === "object") {
+      return {
+        payload,
+        images: extractImageList(extracted.restText),
+      };
+    }
+  }
+
   return {
-    services: [
-      {
-        service_id: "linux",
-        properties: {},
-      },
-    ],
+    payload: {
+      services: [
+        {
+          service_id: "linux",
+          properties: {},
+        },
+      ],
+    },
+    images: [],
   };
 }
 
-const basePayload = getBasePayload();
+const { payload: basePayload, images: demoImages } = getBasePayloadAndImages();
 
 function ensureProps(payload) {
   if (!Array.isArray(payload.services) || !payload.services.length) {
@@ -67,6 +140,9 @@ function buildPayload(index = 0, now = Date.now()) {
   props.state = profile.state;
   props.eventId = `demo-${eventTime.getTime()}-${index}`;
   props.demo = true;
+  if (demoImages.length) {
+    props.image = demoImages[index % demoImages.length];
+  }
 
   return payload;
 }

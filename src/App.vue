@@ -93,7 +93,7 @@ import KpiBar from "./components/KpiBar.vue";
 import TopBar from "./components/TopBar.vue";
 import { useEventStore } from "./composables/useEventStore";
 import { useBackendStream } from "./composables/useBackendStream";
-import { createDemoEvent, createDemoSeed } from "./utils/demoReplay";
+import { createDemoSeed } from "./utils/demoReplay";
 import { toLocalTime } from "./utils/time";
 
 const view = ref("overview");
@@ -104,8 +104,6 @@ const drawerEvent = ref(null);
 const activeEvent = ref(null);
 
 const demo = ref(false);
-let demoTimer = null;
-let demoIndex = 0;
 
 const lastLatencyMs = ref(null);
 const lastSeenByDevice = ref({});
@@ -184,7 +182,7 @@ function rebuildLastSeen(list) {
 }
 
 function applyDemoSeed() {
-  const seed = createDemoSeed(8);
+  const seed = createDemoSeed(10);
   replaceEvents(seed);
   rebuildLastSeen(seed);
   activeEvent.value = seed[0] ?? null;
@@ -192,30 +190,14 @@ function applyDemoSeed() {
   lastLatencyMs.value = seed[0] ? computeLatency(seed[0]) : null;
 }
 
-function pushDemoEvent() {
-  const evt = createDemoEvent(demoIndex++);
-  addEvent(evt);
-  activeEvent.value = evt;
-  if (drawerOpen.value) drawerEvent.value = evt;
-  lastLatencyMs.value = computeLatency(evt);
-  lastSeenByDevice.value = { ...lastSeenByDevice.value, [evt.deviceId]: Date.now() };
-}
-
 function stopDemo() {
-  if (demoTimer) {
-    clearInterval(demoTimer);
-    demoTimer = null;
-  }
+  return;
 }
 
 function startDemo() {
   stopDemo();
   backend.disconnect();
-  demoIndex = 0;
   applyDemoSeed();
-  demoTimer = setInterval(() => {
-    pushDemoEvent();
-  }, 2600);
 }
 
 function toggleDemo() {
