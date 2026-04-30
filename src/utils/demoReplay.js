@@ -4,16 +4,16 @@ import { parseEventMessage } from "./parser";
 const DEMO_TOPIC = "huawei/iotda/match2026/dev1";
 
 const demoProfiles = [
-  { deviceId: "edge-001", faultType: "破损", level: "告警", confidence: 0.91, location: [30.4139, 114.36354], state: false },
-  { deviceId: "edge-002", faultType: "污闪", level: "预警", confidence: 0.86, location: [30.41455, 114.3629], state: false },
-  { deviceId: "edge-003", faultType: "异物附着", level: "预警", confidence: 0.82, location: [30.41328, 114.36418], state: true },
-  { deviceId: "edge-001", faultType: "裂纹", level: "告警", confidence: 0.93, location: [30.41402, 114.36312], state: false },
-  { deviceId: "edge-002", faultType: "放电痕迹", level: "预警", confidence: 0.79, location: [30.41488, 114.36375], state: true },
-  { deviceId: "edge-003", faultType: "伞裙破损", level: "告警", confidence: 0.9, location: [30.41296, 114.36446], state: false },
-  { deviceId: "edge-004", faultType: "污秽沉积", level: "预警", confidence: 0.77, location: [30.41362, 114.36236], state: false },
-  { deviceId: "edge-005", faultType: "金具锈蚀", level: "预警", confidence: 0.84, location: [30.41501, 114.36492], state: true },
-  { deviceId: "edge-004", faultType: "破损", level: "告警", confidence: 0.95, location: [30.41318, 114.36386], state: false },
-  { deviceId: "edge-005", faultType: "异物附着", level: "预警", confidence: 0.81, location: [30.41433, 114.36271], state: false },
+  { deviceId: "edge-001", faultType: "破损", level: "告警", confidence: 0.91, location: [30.5388, 114.3567], state: false },
+  { deviceId: "edge-001", faultType: "污闪", level: "预警", confidence: 0.86, location: [30.53858, 114.3574], state: false },
+  { deviceId: "edge-001", faultType: "异物附着", level: "预警", confidence: 0.82, location: [30.53805, 114.35792], state: true },
+  { deviceId: "edge-001", faultType: "裂纹", level: "告警", confidence: 0.93, location: [30.53735, 114.35795], state: false },
+  { deviceId: "edge-001", faultType: "放电痕迹", level: "预警", confidence: 0.79, location: [30.53676, 114.35748], state: true },
+  { deviceId: "edge-001", faultType: "伞裙破损", level: "告警", confidence: 0.9, location: [30.53658, 114.3567], state: false },
+  { deviceId: "edge-001", faultType: "污秽沉积", level: "预警", confidence: 0.77, location: [30.5368, 114.35595], state: false },
+  { deviceId: "edge-001", faultType: "金具锈蚀", level: "预警", confidence: 0.84, location: [30.53732, 114.35542], state: true },
+  { deviceId: "edge-001", faultType: "破损", level: "告警", confidence: 0.95, location: [30.53803, 114.35545], state: false },
+  { deviceId: "edge-001", faultType: "异物附着", level: "预警", confidence: 0.81, location: [30.5386, 114.35598], state: false },
 ];
 
 function safeJsonParse(text) {
