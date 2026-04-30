@@ -117,7 +117,8 @@ export function parseEventMessage(topic, payloadText) {
     const faultType = flat.faultType ?? flat.type ?? flat.defectType ?? flat.defect ?? flat.label ?? "未知缺陷";
     const level = normalizeLevel(flat.level ?? flat.alarmLevel ?? flat.severity ?? flat.status ?? "warn");
     const confidence = asNumber(flat.confidence ?? flat.score ?? flat.prob ?? flat.p);
-    const locName = flat.locName ?? flat.towerId ?? flat.poleId ?? flat.segment ?? flat.location ?? "--";
+    const locNameRaw = flat.locName ?? flat.towerId ?? flat.poleId ?? flat.segment ?? "--";
+    const locName = Array.isArray(locNameRaw) || typeof locNameRaw === "object" ? "--" : locNameRaw;
     const latRaw = flat.lat ?? flat.latitude;
     const lngRaw = flat.lng ?? flat.lon ?? flat.longitude;
     let lat = asNumber(latRaw);
@@ -129,6 +130,7 @@ export function parseEventMessage(topic, payloadText) {
     }
     const { imageUrl, imageDataUrl } = parseImageField(flat);
     const bboxes = normalizeBoxes(flat);
+    const state = typeof flat.state === "boolean" ? flat.state : flat.state === "true" ? true : flat.state === "false" ? false : undefined;
     return {
       id: String(eventId ?? randomId()),
       topic,
@@ -144,6 +146,7 @@ export function parseEventMessage(topic, payloadText) {
       imageUrl,
       imageDataUrl,
       bboxes,
+      state,
       rawText: payloadText,
       rawObj: js,
     };

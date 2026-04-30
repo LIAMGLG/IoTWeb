@@ -1,6 +1,6 @@
 <template>
   <div class="app">
-    <TopBar :view="view" :status="backend.status.value" :statusText="statusText" :demo="demo" @changeView="view = $event" @toggleDemo="toggleDemo" />
+    <TopBar :view="view" :status="headerStatus" :statusText="statusText" :demo="demo" @changeView="view = $event" @toggleDemo="toggleDemo" />
 
     <main class="main">
       <section v-show="view === 'overview'" class="grid">
@@ -62,6 +62,21 @@
       </section>
     </main>
 
+    <footer
+      style="
+        margin: 12px 18px 18px;
+        padding: 10px 14px;
+        border: 1px solid rgba(0, 215, 255, 0.12);
+        border-radius: 12px;
+        background: rgba(8, 20, 38, 0.72);
+        color: rgba(232, 244, 255, 0.62);
+        font-size: 12px;
+        line-height: 1.7;
+      "
+    >
+      本网页仅供项目演示与答辩展示使用，页面中的告警数据、图片与定位信息为演示回放内容，用于展示系统流程、界面交互与功能设计，不作为实时监测或生产运行依据。
+    </footer>
+
     <EventDrawer :open="drawerOpen" :event="drawerEvent" :allEvents="events" @close="drawerOpen = false" @openSimilar="openSimilar" />
   </div>
 </template>
@@ -78,10 +93,11 @@ import KpiBar from "./components/KpiBar.vue";
 import TopBar from "./components/TopBar.vue";
 import { useEventStore } from "./composables/useEventStore";
 import { useBackendStream } from "./composables/useBackendStream";
+import { createDemoEvent, createDemoSeed } from "./utils/demoReplay";
 import { toLocalTime } from "./utils/time";
 
 const view = ref("overview");
-const { events, addEvent, onlineDevices, todayAlarms, latest, toggleState } = useEventStore();
+const { events, addEvent, replaceEvents, onlineDevices, todayAlarms, latest, toggleState } = useEventStore();
 
 const drawerOpen = ref(false);
 const drawerEvent = ref(null);
@@ -89,6 +105,7 @@ const activeEvent = ref(null);
 
 const demo = ref(false);
 let demoTimer = null;
+let demoIndex = 0;
 
 const lastLatencyMs = ref(null);
 const lastSeenByDevice = ref({});
@@ -108,6 +125,7 @@ function computeLatency(evt) {
 }
 
 function onEvent(evt) {
+  if (demo.value) return;
   addEvent(evt);
   lastLatencyMs.value = computeLatency(evt);
   lastSeenByDevice.value = { ...lastSeenByDevice.value, [evt.deviceId]: Date.now() };
@@ -118,12 +136,14 @@ const backend = useBackendStream({
   onEvent,
 });
 
-onMounted(() => {
-  if (backendUrl.value) backend.connect();
+const headerStatus = computed(() => {
+  if (demo.value || !backendUrl.value) return "connected";
+  return backend.status.value;
 });
 
 const statusText = computed(() => {
-  if (demo.value) return "演示中";
+  if (demo.value) return "演示回放";
+  if (!backendUrl.value) return "离线展示";
   return backend.statusText.value;
 });
 
@@ -155,6 +175,32 @@ function handleToggleState(eventId) {
   toggleState(eventId);
 }
 
+function rebuildLastSeen(list) {
+  const next = {};
+  (Array.isArray(list) ? list : []).forEach((evt) => {
+    if (evt?.deviceId) next[evt.deviceId] = Date.now();
+  });
+  lastSeenByDevice.value = next;
+}
+
+function applyDemoSeed() {
+  const seed = createDemoSeed(8);
+  replaceEvents(seed);
+  rebuildLastSeen(seed);
+  activeEvent.value = seed[0] ?? null;
+  if (drawerOpen.value) drawerEvent.value = seed[0] ?? null;
+  lastLatencyMs.value = seed[0] ? computeLatency(seed[0]) : null;
+}
+
+function pushDemoEvent() {
+  const evt = createDemoEvent(demoIndex++);
+  addEvent(evt);
+  activeEvent.value = evt;
+  if (drawerOpen.value) drawerEvent.value = evt;
+  lastLatencyMs.value = computeLatency(evt);
+  lastSeenByDevice.value = { ...lastSeenByDevice.value, [evt.deviceId]: Date.now() };
+}
+
 function stopDemo() {
   if (demoTimer) {
     clearInterval(demoTimer);
@@ -162,48 +208,14 @@ function stopDemo() {
   }
 }
 
-function randomId() {
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 8)}`;
-}
-
 function startDemo() {
   stopDemo();
+  backend.disconnect();
+  demoIndex = 0;
+  applyDemoSeed();
   demoTimer = setInterval(() => {
-    const lvPick = Math.random();
-    const level = lvPick > 0.82 ? "alarm" : lvPick > 0.48 ? "warn" : "ok";
-    const defectTypes = ["污闪风险", "伞裙破损", "裂纹", "金具锈蚀", "异物附着", "放电痕迹"];
-    const devices = ["edge-001", "edge-002", "edge-003"];
-    const ti = Math.max(1, Math.min(9, Math.floor(Math.random() * 9) + 1));
-    const evt = {
-      id: randomId(),
-      topic: "demo",
-      ts: new Date(Date.now() - Math.floor(Math.random() * 800)).toISOString(),
-      receivedAt: new Date().toISOString(),
-      deviceId: devices[Math.floor(Math.random() * devices.length)],
-      faultType: defectTypes[Math.floor(Math.random() * defectTypes.length)],
-      level,
-      confidence: Math.max(0, Math.min(1, 0.55 + Math.random() * 0.44)),
-      locName: `线路A-T${ti}`,
-      lat: 30.56 + Math.random() * 0.02,
-      lng: 114.31 + Math.random() * 0.02,
-      imageUrl: null,
-      imageDataUrl: null,
-      bboxes: [
-        {
-          left: 0.32 + Math.random() * 0.18,
-          top: 0.24 + Math.random() * 0.2,
-          right: 0.64 + Math.random() * 0.16,
-          bottom: 0.62 + Math.random() * 0.2,
-          kind: "norm",
-          label: "缺陷",
-          score: Math.max(0, Math.min(1, 0.6 + Math.random() * 0.35)),
-        },
-      ],
-      rawText: JSON.stringify({ demo: true }, null, 2),
-      rawObj: null,
-    };
-    onEvent(evt);
-  }, 2200);
+    pushDemoEvent();
+  }, 2600);
 }
 
 function toggleDemo() {
@@ -213,6 +225,14 @@ function toggleDemo() {
   } else {
     demo.value = false;
     stopDemo();
+    if (backendUrl.value) {
+      replaceEvents([]);
+      rebuildLastSeen([]);
+      lastLatencyMs.value = null;
+      activeEvent.value = null;
+      drawerEvent.value = null;
+      backend.connect();
+    }
   }
 }
 
@@ -225,5 +245,15 @@ function lastSeenText(deviceId) {
 onUnmounted(() => {
   stopDemo();
   backend.disconnect();
+});
+
+onMounted(() => {
+  if (backendUrl.value) {
+    backend.connect();
+    return;
+  }
+
+  demo.value = true;
+  startDemo();
 });
 </script>

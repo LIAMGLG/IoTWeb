@@ -67,6 +67,16 @@
           <div class="coords__value">{{ event?.faultType ?? "--" }}</div>
         </div>
       </div>
+      <div
+        style="
+          padding: 8px 12px 0;
+          color: rgba(232, 244, 255, 0.55);
+          font-size: 11px;
+          line-height: 1.5;
+        "
+      >
+        {{ attributionText }}
+      </div>
     </div>
   </div>
 </template>
@@ -85,6 +95,7 @@ const mapEl = ref(null);
 const mode = ref("map");
 const tileError = ref(false);
 const useGcj02 = ref(false);
+const tdtKey = String(import.meta.env.VITE_TDT_KEY ?? "").trim();
 
 let map = null;
 let markers = [];
@@ -92,6 +103,11 @@ let latestMarker = null;
 let polylines = [];
 
 const event = computed(() => props.latest);
+const attributionText = computed(() => {
+  if (tdtKey) return "地图底图: 天地图  审图号: GS(2024)6208号";
+  if (tileError.value) return "演示模式定位示意图  如接入天地图请展示审图号: GS(2024)6208号";
+  return "在线底图仅用于位置展示，比赛演示建议使用天地图并标注审图号。";
+});
 
 function colorByLevel(lv) {
   if (lv === "alarm") return "rgba(255,77,109,0.95)";
@@ -310,7 +326,6 @@ function escapeHtml(s) {
 onMounted(() => {
   map = L.map(mapEl.value, { zoomControl: false, attributionControl: false });
   map.setView([30.56, 114.31], 13);
-  const tdtKey = String(import.meta.env.VITE_TDT_KEY ?? "").trim();
   const tdtStyle = String(import.meta.env.VITE_TDT_STYLE ?? "vec").trim().toLowerCase();
 
   const onTileError = () => {
@@ -332,6 +347,17 @@ onMounted(() => {
     labelTiles.on("tileerror", onTileError);
     baseTiles.addTo(map);
     labelTiles.addTo(map);
+
+    // 添加天地图审图号标注
+    const tdtAttribution = L.control({
+      position: 'bottomright'
+    });
+    tdtAttribution.onAdd = function (map) {
+      const div = L.DomUtil.create('div', 'leaflet-control-attribution');
+      div.innerHTML = '<a href="http://www.tianditu.gov.cn/" target="_blank" style="font-size:11px;color:#999;text-decoration:none;">天地图</a> <span style="font-size:11px;color:#999;">审图号: GS(2024)6208号</span>';
+      return div;
+    };
+    tdtAttribution.addTo(map);
   } else {
     const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 });
     tiles.on("tileerror", onTileError);

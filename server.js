@@ -1,6 +1,7 @@
 import mqtt from "mqtt";
 import { WebSocketServer } from "ws";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -10,13 +11,15 @@ const __dirname = path.dirname(__filename);
 const HUAWEI_CONFIG = {
   host: process.env.IOTDA_HOST || "af8f490a33.st1.iotda-app.cn-north-4.myhuaweicloud.com",
   port: Number(process.env.IOTDA_PORT || 8883),
-  accessKey: process.env.IOTDA_ACCESS_KEY || "",
-  accessCode: process.env.IOTDA_ACCESS_CODE || "",
+  accessKey: process.env.IOTDA_ACCESS_KEY || "wqN5xMQW",
+  accessCode: process.env.IOTDA_ACCESS_CODE || "CEYlxEyDK6d6fzaXOdiBzvHHSnJPNM42",
   topic: process.env.IOTDA_TOPIC || "huawei/iotda/match2026/dev1",
   instanceId: process.env.IOTDA_INSTANCE_ID || "",
 };
 
 const WS_PORT = Number(process.env.PORT || process.env.WS_PORT || 8080);
+
+const clients = new Set();
 
 if (!HUAWEI_CONFIG.accessKey || !HUAWEI_CONFIG.accessCode) {
   console.error("❌ 缺少环境变量：IOTDA_ACCESS_KEY / IOTDA_ACCESS_CODE");
@@ -136,25 +139,38 @@ async function connectWithRetry() {
 }
 
 // 5. 启动本地 WebSocket 服务器
-const wss = new WebSocketServer({ port: WS_PORT }, () => {
-  console.log(`\n🚀 本地 WebSocket 服务器已启动，监听端口: ${WS_PORT}`);
-  console.log(`   网页前端请连接: ws://<你的服务器域名或IP>:${WS_PORT}`);
-});
-
-// 记录所有连进来的前端页面
-const clients = new Set();
-
-wss.on("connection", (ws) => {
-  console.log("🟢 有前端页面(浏览器)连接进来了!");
-  clients.add(ws);
-  try {
-    ws.send(JSON.stringify({ topic: "backend", payload: JSON.stringify({ type: "hello", ts: new Date().toISOString() }) }));
-  } catch {}
-  
-  ws.on("close", () => {
-    console.log("🔴 前端页面断开连接");
-    clients.delete(ws);
+try {
+  const wss = new WebSocketServer({ port: WS_PORT }, () => {
+    console.log(`\n🚀 本地 WebSocket 服务器已启动，监听端口: ${WS_PORT}`);
+    console.log(`   网页前端请连接: ws://<你的服务器域名或IP>:${WS_PORT}`);
+    console.log(`   示例: ws://${os.hostname()}:${WS_PORT}`);
   });
-});
 
-connectWithRetry();
+  wss.on("connection", (ws) => {
+    console.log("🟢 有前端页面(浏览器)连接进来了!");
+    clients.add(ws);
+    
+    ws.on("close", () => {
+      console.log("🔴 前端页面断开连接");
+      clients.delete(ws);
+    });
+
+    ws.on("error", (error) => {
+      console.error("❌ WebSocket 客户端错误:", error.message);
+    });
+  });
+
+  wss.on("error", (error) => {
+    console.error("❌ WebSocket 服务器错误:", error.message);
+    if (error.code === 'EADDRINUSE') {
+      console.error(`⚠️ 端口 ${WS_PORT} 已被占用，请检查是否有其他进程在运行`);
+      console.error(`   尝试使用其他端口: PORT=8081 node server.js`);
+      process.exit(1);
+    }
+  });
+
+  connectWithRetry();
+} catch (error) {
+  console.error("❌ 启动 WebSocket 服务器失败:", error.message);
+  process.exit(1);
+}
